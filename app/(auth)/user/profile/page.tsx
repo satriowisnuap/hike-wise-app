@@ -1,8 +1,8 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import Avatar from '@/components/avatar-nav';
-import ThemeToggle from '@/components/theme-toggle';
+import Avatar from '@/components/Avatar';
+import ThemeToggle from '@/components/ThemeToggle';
 import { Award, Leaf, Map, CheckCircle } from 'lucide-react';
 
 export default function ProfilePage() {

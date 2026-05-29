@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import ThemeToggle from './theme-toggle';
-import { BarChart, Mountain, Award, Users, AlertTriangle } from 'lucide-react';
+import ThemeToggle from './ThemeToggle';
+import { BarChart, Mountain, Award, Users, AlertTriangle, Trees } from 'lucide-react';
 
 const NAV_ITEMS = [
     { label: 'Dashboard', href: '/admin/dashboard', icon: BarChart },
@@ -22,8 +22,8 @@ export default function AdminSidebar() {
         <div className="hidden md:flex flex-col w-64 h-screen fixed top-0 left-0 bg-stone-900 dark:bg-stone-950 text-stone-100 z-10">
             <div className="p-6 border-b border-stone-800">
                 <Link href="/admin/dashboard" className="flex items-center gap-2">
-                    <span className="text-2xl">🏔️</span>
-                    <span className="text-xl font-bold text-emerald-400">Admin Panel</span>
+                    <Trees className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">Hike Wise</span>
                 </Link>
             </div>
 

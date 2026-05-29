@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Trees, Menu, X } from 'lucide-react';
 import { useState } from 'react';
-import ThemeToggle from '@/components/theme-toggle';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface NavbarProps {
     currentUser: unknown;

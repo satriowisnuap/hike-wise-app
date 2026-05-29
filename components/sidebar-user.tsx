@@ -3,9 +3,20 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import Avatar from './avatar-nav';
-import ThemeToggle from './theme-toggle';
-import { Home, Map, Briefcase, ShieldCheck, MapPin, Leaf, MessageSquare, Award, User as UserIcon } from 'lucide-react';
+import Avatar from './Avatar';
+import ThemeToggle from './ThemeToggle';
+import {
+    Home,
+    Map,
+    Briefcase,
+    ShieldCheck,
+    MapPin,
+    Leaf,
+    MessageSquare,
+    Trees,
+    Award,
+    User as UserIcon,
+} from 'lucide-react';
 
 const NAV_ITEMS = [
     { label: 'Dashboard', href: '/user/dashboard', icon: Home },
@@ -27,7 +38,7 @@ export default function Sidebar() {
         <div className="hidden md:flex flex-col w-64 h-screen fixed top-0 left-0 bg-white dark:bg-stone-900 border-r border-stone-200 dark:border-stone-700 hover-scrolling z-10 transition-colors">
             <div className="p-6">
                 <Link href="/" className="flex items-center gap-2">
-                    <span className="text-2xl">🏔️</span>
+                    <Trees className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                     <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">Hike Wise</span>
                 </Link>
             </div>

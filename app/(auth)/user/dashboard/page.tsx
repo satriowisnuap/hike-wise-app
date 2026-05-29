@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
-import Avatar from '@/components/avatar-nav';
+import Avatar from '@/components/Avatar';
 import Link from 'next/link';
 import { Map, Briefcase, ShieldCheck, MapPin, Leaf, MessageSquare } from 'lucide-react';
 
@@ -19,7 +19,7 @@ export default function Dashboard() {
                 <Avatar name={userProfile.name} size="xl" />
                 <div>
                     <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100">
-                        Selamat datang, {firstName}! 👋
+                        Selamat datang, {firstName}!
                     </h1>
                     <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 text-sm font-medium">
                         <Leaf className="w-4 h-4" />
