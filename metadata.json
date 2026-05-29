@@ -1,0 +1,6 @@
+{
+  "name": "Hike Wise",
+  "description": "An AI-powered hiking and eco-adventure companion.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
