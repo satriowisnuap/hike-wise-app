@@ -11,13 +11,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     useEffect(() => {
         if (!loading) {
-            if (!currentUser || userProfile?.role !== 'admin') {
+            if (!currentUser) {
                 router.push('/login');
+            } else if (userProfile && userProfile.role !== 'admin') {
+                // Profil sudah dimuat tapi bukan admin
+                router.push('/user/dashboard');
             }
         }
     }, [currentUser, userProfile, loading, router]);
 
-    if (loading) {
+    // Tampilkan loading selama autentikasi atau selama profil belum dimuat
+    if (loading || (currentUser && !userProfile)) {
         return (
             <div className="flex bg-stone-950 min-h-screen items-center justify-center text-stone-500">
                 Memuat data...
@@ -25,7 +29,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         );
     }
 
-    if (!currentUser || userProfile?.role !== 'admin') {
+    if (!currentUser || !userProfile || userProfile.role !== 'admin') {
         return null; // Will redirect
     }
 

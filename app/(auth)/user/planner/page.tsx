@@ -188,11 +188,7 @@ export default function PlannerPage() {
                   }`}
                 >
                   <div className="aspect-[4/3] w-full relative">
-                    {mountain.imageURL ? (
-                      <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url(${mountain.imageURL})` }} />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-emerald-400 to-stone-600 dark:from-emerald-700 dark:to-stone-800" />
-                    )}
+                    <div className="w-full h-full bg-gradient-to-br from-emerald-400 to-stone-600 dark:from-emerald-700 dark:to-stone-800" />
                     {selectedMountain?.id === mountain.id && (
                       <div className="absolute top-2 right-2 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg">
                         <CheckCircle2 className="w-4 h-4" />

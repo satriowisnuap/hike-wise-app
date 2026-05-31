@@ -1,8 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { User as FirebaseUser, onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { User } from '@/types';
 import { useRouter } from 'next/navigation';
@@ -13,6 +13,7 @@ interface AuthContextType {
   userRole: 'user' | 'admin' | null;
   loading: boolean;
   logout: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -21,6 +22,7 @@ const AuthContext = createContext<AuthContextType>({
   userRole: null,
   loading: true,
   logout: async () => {},
+  refreshProfile: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -31,43 +33,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userRole, setUserRole] = useState<'user' | 'admin' | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  // Gunakan ref agar router selalu fresh di dalam closure onAuthStateChanged
+  const routerRef = useRef(router);
+  routerRef.current = router;
+
+  const fetchUserProfile = async (user: FirebaseUser) => {
+    const userDocRef = doc(db, 'users', user.uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (userDoc.exists()) {
+      const profile = userDoc.data() as User;
+      if (profile.suspended) {
+        await signOut(auth);
+        setCurrentUser(null);
+        setUserProfile(null);
+        setUserRole(null);
+        setLoading(false);
+        routerRef.current.push('/login?error=suspended');
+        return false;
+      }
+      setUserProfile(profile);
+      setUserRole(profile.role);
+      return true;
+    }
+    // Dokumen belum ada — bisa terjadi saat race condition setelah register
+    return false;
+  };
+
+  const refreshProfile = async () => {
+    if (currentUser) {
+      await fetchUserProfile(currentUser);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUser(user);
         try {
-          const userDocRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userDocRef);
-
-          if (userDoc.exists()) {
-            const profile = userDoc.data() as User;
-            if (profile.suspended) {
-              await signOut(auth);
-              setCurrentUser(null);
-              setUserProfile(null);
-              setUserRole(null);
-              router.push('/login?error=suspended');
-            } else {
-              setUserProfile(profile);
-              setUserRole(profile.role);
-            }
-          } else {
-            // Create new user profile for Google Sign-In
-            const newProfile: User = {
-              uid: user.uid,
-              name: user.displayName || 'Pendaki Baru',
-              email: user.email || '',
-              role: 'user',
-              ecoScore: 0,
-              totalTrips: 0,
-              suspended: false,
-              createdAt: Timestamp.now(),
-            };
-            await setDoc(userDocRef, newProfile);
-            setUserProfile(newProfile);
-            setUserRole('user');
-          }
+          await fetchUserProfile(user);
         } catch (error) {
           console.error("Error fetching user profile:", error);
         }
@@ -80,7 +84,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return unsubscribe;
-  }, [router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const logout = async () => {
     await signOut(auth);
@@ -88,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, userProfile, userRole, loading, logout }}>
+    <AuthContext.Provider value={{ currentUser, userProfile, userRole, loading, logout, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

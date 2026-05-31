@@ -18,7 +18,6 @@ export interface Mountain {
   altitude: number;
   difficulty: 'easy' | 'medium' | 'hard' | 'expert';
   description: string;
-  imageURL: string;
   baseCamp: string;
   entryFee: number;
   isOpen: boolean;

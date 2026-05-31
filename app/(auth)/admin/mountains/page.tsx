@@ -1,22 +1,77 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
-import { uploadMountainImage, deleteMountainImage } from '@/lib/storage';
 import { Mountain } from '@/types';
 import { toast } from 'sonner';
-import { Plus, Search, Filter, Edit2, Trash2, X, Image as ImageIcon, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Plus, Search, Filter, Edit2, Trash2, X, Loader2 } from 'lucide-react';
 
 const PROVINCES = [
-  "Aceh", "Sumatera Utara", "Sumatera Barat", "Riau", "Kepulauan Riau", "Jambi", "Bengkulu", 
-  "Sumatera Selatan", "Kepulauan Bangka Belitung", "Lampung", "DKI Jakarta", "Jawa Barat", 
-  "Banten", "Jawa Tengah", "DI Yogyakarta", "Jawa Timur", "Bali", "Nusa Tenggara Barat", 
-  "Nusa Tenggara Timur", "Kalimantan Barat", "Kalimantan Tengah", "Kalimantan Selatan", 
-  "Kalimantan Timur", "Kalimantan Utara", "Sulawesi Utara", "Gorontalo", "Sulawesi Tengah", 
-  "Sulawesi Barat", "Sulawesi Selatan", "Sulawesi Tenggara", "Maluku", "Maluku Utara", 
+  "Aceh", "Sumatera Utara", "Sumatera Barat", "Riau", "Kepulauan Riau", "Jambi", "Bengkulu",
+  "Sumatera Selatan", "Kepulauan Bangka Belitung", "Lampung", "DKI Jakarta", "Jawa Barat",
+  "Banten", "Jawa Tengah", "DI Yogyakarta", "Jawa Timur", "Bali", "Nusa Tenggara Barat",
+  "Nusa Tenggara Timur", "Kalimantan Barat", "Kalimantan Tengah", "Kalimantan Selatan",
+  "Kalimantan Timur", "Kalimantan Utara", "Sulawesi Utara", "Gorontalo", "Sulawesi Tengah",
+  "Sulawesi Barat", "Sulawesi Selatan", "Sulawesi Tenggara", "Maluku", "Maluku Utara",
   "Papua Barat", "Papua"
 ];
+
+// ─── Utility: format angka dengan titik ribuan ───────────────────────────────
+function formatNumber(value: number | string): string {
+  const num = typeof value === 'string' ? value.replace(/\D/g, '') : String(value);
+  if (!num) return '';
+  return Number(num).toLocaleString('id-ID');
+}
+
+// ─── Komponen Input Angka dengan Format Otomatis ─────────────────────────────
+interface NumberInputProps {
+  value: number;
+  onChange: (val: number) => void;
+  placeholder?: string;
+  className?: string;
+  min?: number;
+}
+
+function NumberInput({ value, onChange, placeholder, className, min = 0 }: NumberInputProps) {
+  const [display, setDisplay] = useState(value > 0 ? formatNumber(value) : '');
+
+  useEffect(() => {
+    setDisplay(value > 0 ? formatNumber(value) : '');
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\./g, '').replace(/,/g, '');
+    // Hanya izinkan digit
+    if (raw !== '' && !/^\d+$/.test(raw)) return;
+    const num = Number(raw) || 0;
+    if (num < min && raw !== '') return;
+    setDisplay(raw === '' ? '' : formatNumber(raw));
+    onChange(num);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Izinkan: Backspace, Delete, Tab, Escape, Enter, Arrow keys, Home, End
+    const allowed = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+    if (allowed.includes(e.key)) return;
+    // Blokir non-digit
+    if (!/^\d$/.test(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={display}
+      onChange={handleChange}
+      onKeyDown={handleKeyDown}
+      placeholder={placeholder}
+      className={className}
+    />
+  );
+}
 
 export default function AdminMountainsPage() {
   const [mountains, setMountains] = useState<Mountain[]>([]);
@@ -30,15 +85,12 @@ export default function AdminMountainsPage() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentMountainId, setCurrentMountainId] = useState('');
-  
+
   // Form state
   const [formData, setFormData] = useState<Partial<Mountain>>({
     name: '', province: 'Jawa Barat', altitude: 0, difficulty: 'medium',
-    description: '', baseCamp: '', entryFee: 0, isOpen: true, imageURL: ''
+    description: '', baseCamp: '', entryFee: 0, isOpen: true
   });
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>('');
-  const [imageError, setImageError] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Delete Confirm
@@ -48,21 +100,21 @@ export default function AdminMountainsPage() {
     const q = query(collection(db, 'mountains'));
     const unsub = onSnapshot(q, (snap) => {
       setMountains(snap.docs.map(d => ({ id: d.id, ...d.data() } as Mountain)));
+    }, (error) => {
+      console.error('Error listening to mountains:', error);
+      toast.error('Gagal memuat data gunung');
     });
     return () => unsub();
   }, []);
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setFormData({
       name: '', province: 'Jawa Barat', altitude: 0, difficulty: 'medium',
-      description: '', baseCamp: '', entryFee: 0, isOpen: true, imageURL: ''
+      description: '', baseCamp: '', entryFee: 0, isOpen: true
     });
-    setImageFile(null);
-    setImagePreview('');
-    setImageError('');
     setIsEditing(false);
     setCurrentMountainId('');
-  };
+  }, []);
 
   const handleOpenAdd = () => {
     resetForm();
@@ -71,64 +123,57 @@ export default function AdminMountainsPage() {
 
   const handleOpenEdit = (m: Mountain) => {
     resetForm();
-    setFormData(m);
-    setImagePreview(m.imageURL || '');
+    setFormData({ ...m });
     setCurrentMountainId(m.id);
     setIsEditing(true);
     setIsPanelOpen(true);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    setImageError('');
-    if (!file) return;
-
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setImageError('Format harus JPEG, PNG, atau WEBP');
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setImageError('Ukuran maksimal 2MB');
-      return;
-    }
-
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setImagePreview(ev.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || (formData.description?.length || 0) < 100) return;
+
+    // Validasi manual
+    if (!formData.name?.trim()) {
+      toast.error('Nama gunung wajib diisi');
+      return;
+    }
+    if ((formData.altitude || 0) <= 0) {
+      toast.error('Ketinggian harus lebih dari 0');
+      return;
+    }
+    if ((formData.description?.length || 0) < 100) {
+      toast.error('Deskripsi minimal 100 karakter');
+      return;
+    }
 
     setSaving(true);
     try {
       const mId = isEditing ? currentMountainId : `mt-${Date.now()}`;
-      let finalImageUrl = formData.imageURL || '';
 
-      if (imageFile) {
-        toast.info('Mengupload foto...');
-        finalImageUrl = await uploadMountainImage(mId, imageFile);
-      }
-
-      const mData = {
-        ...formData,
-        imageURL: finalImageUrl,
-        updatedAt: Timestamp.now()
+      const mData: Record<string, unknown> = {
+        name: formData.name?.trim() || '',
+        province: formData.province || 'Jawa Barat',
+        altitude: formData.altitude || 0,
+        difficulty: formData.difficulty || 'medium',
+        description: formData.description?.trim() || '',
+        baseCamp: formData.baseCamp?.trim() || '',
+        entryFee: formData.entryFee || 0,
+        isOpen: formData.isOpen ?? true,
+        updatedAt: Timestamp.now(),
       };
 
       if (!isEditing) {
-        (mData as any).createdAt = Timestamp.now();
+        mData.createdAt = Timestamp.now();
       }
 
       await setDoc(doc(db, 'mountains', mId), mData, { merge: true });
-      toast.success(isEditing ? 'Gunung diperbarui' : 'Gunung ditambahkan');
+      toast.success(isEditing ? 'Gunung berhasil diperbarui!' : 'Gunung berhasil ditambahkan!');
       setIsPanelOpen(false);
-    } catch (err: any) {
-      toast.error('Gagal menyimpan: ' + err.message);
+      resetForm();
+    } catch (err: unknown) {
+      console.error('Save error:', err);
+      const message = err instanceof Error ? err.message : 'Kesalahan tidak diketahui';
+      toast.error('Gagal menyimpan: ' + message);
     } finally {
       setSaving(false);
     }
@@ -136,9 +181,9 @@ export default function AdminMountainsPage() {
 
   const handleToggleStatus = async (id: string, currentStatus: boolean) => {
     try {
-      await updateDoc(doc(db, 'mountains', id), { isOpen: !currentStatus });
-      toast.success('Status diubah');
-    } catch (err) {
+      await updateDoc(doc(db, 'mountains', id), { isOpen: !currentStatus, updatedAt: Timestamp.now() });
+      toast.success('Status berhasil diubah');
+    } catch {
       toast.error('Gagal mengubah status');
     }
   };
@@ -146,10 +191,9 @@ export default function AdminMountainsPage() {
   const handleDelete = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'mountains', id));
-      await deleteMountainImage(id);
-      toast.success('Gunung dihapus');
-    } catch (err) {
-      toast.error('Gagal menghapus');
+      toast.success('Gunung berhasil dihapus');
+    } catch {
+      toast.error('Gagal menghapus gunung');
     } finally {
       setDeleteConfirmId(null);
     }
@@ -159,9 +203,9 @@ export default function AdminMountainsPage() {
   const filtered = mountains.filter(m => {
     const qMatch = m.name.toLowerCase().includes(searchQuery.toLowerCase());
     const diffMatch = filterDifficulty === 'all' || m.difficulty === filterDifficulty;
-    const statusMatch = filterStatus === 'all' || 
-                        (filterStatus === 'open' && m.isOpen) || 
-                        (filterStatus === 'closed' && !m.isOpen);
+    const statusMatch = filterStatus === 'all' ||
+      (filterStatus === 'open' && m.isOpen) ||
+      (filterStatus === 'closed' && !m.isOpen);
     return qMatch && diffMatch && statusMatch;
   });
 
@@ -169,7 +213,7 @@ export default function AdminMountainsPage() {
   const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
   const getDifficultyBadge = (d: string) => {
-    switch(d) {
+    switch (d) {
       case 'easy': return <span className="text-xs px-2 py-1 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">Mudah</span>;
       case 'medium': return <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Sedang</span>;
       case 'hard': return <span className="text-xs px-2 py-1 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Sulit</span>;
@@ -178,16 +222,18 @@ export default function AdminMountainsPage() {
     }
   };
 
+  const descLen = formData.description?.length || 0;
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-8 relative">
-      
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100">Kelola Gunung</h1>
           <p className="text-sm text-stone-500 dark:text-stone-400">Manajemen direktori gunung untuk aplikasi.</p>
         </div>
-        <button 
+        <button
           onClick={handleOpenAdd}
           className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 dark:bg-emerald-500 text-white font-medium hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2"
         >
@@ -199,17 +245,17 @@ export default function AdminMountainsPage() {
       <div className="bg-white dark:bg-stone-900 p-4 rounded-2xl border border-stone-200 dark:border-stone-700 flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-          <input 
+          <input
             type="text" placeholder="Cari nama gunung..."
-            value={searchQuery} onChange={e => {setSearchQuery(e.target.value); setPage(1);}}
+            value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
             className="w-full pl-9 pr-4 py-2 rounded-xl border border-stone-300 dark:border-stone-600 bg-stone-50 dark:bg-stone-800 text-sm text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500"
           />
         </div>
         <div className="flex gap-2">
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
-            <select 
-              value={filterDifficulty} onChange={e => {setFilterDifficulty(e.target.value); setPage(1);}}
+            <select
+              value={filterDifficulty} onChange={e => { setFilterDifficulty(e.target.value); setPage(1); }}
               className="pl-9 pr-8 py-2 rounded-xl border border-stone-300 dark:border-stone-600 bg-stone-50 dark:bg-stone-800 text-sm text-stone-900 dark:text-stone-100 outline-none appearance-none"
             >
               <option value="all">Semua Kesulitan</option>
@@ -219,8 +265,8 @@ export default function AdminMountainsPage() {
               <option value="expert">Ekstrem</option>
             </select>
           </div>
-          <select 
-            value={filterStatus} onChange={e => {setFilterStatus(e.target.value); setPage(1);}}
+          <select
+            value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
             className="px-4 py-2 rounded-xl border border-stone-300 dark:border-stone-600 bg-stone-50 dark:bg-stone-800 text-sm text-stone-900 dark:text-stone-100 outline-none"
           >
             <option value="all">Semua Status</option>
@@ -235,7 +281,6 @@ export default function AdminMountainsPage() {
         <table className="w-full text-left text-sm whitespace-nowrap">
           <thead className="bg-stone-50 dark:bg-stone-900/50 border-b border-stone-200 dark:border-stone-700 text-stone-500 dark:text-stone-400">
             <tr>
-              <th className="p-4 font-semibold w-16">Foto</th>
               <th className="p-4 font-semibold">Nama</th>
               <th className="p-4 font-semibold">Provinsi</th>
               <th className="p-4 font-semibold">Ketinggian</th>
@@ -247,18 +292,9 @@ export default function AdminMountainsPage() {
           <tbody className="divide-y divide-stone-100 dark:divide-stone-800">
             {paginated.map(m => (
               <tr key={m.id} className="hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors">
-                <td className="p-4">
-                  {m.imageURL ? (
-                    <div className="w-10 h-10 rounded border border-stone-200 dark:border-stone-700 bg-cover bg-center" style={{ backgroundImage: `url(${m.imageURL})` }} />
-                  ) : (
-                    <div className="w-10 h-10 rounded border border-stone-200 dark:border-stone-700 bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-stone-400">
-                      <ImageIcon className="w-5 h-5" />
-                    </div>
-                  )}
-                </td>
                 <td className="p-4 font-bold text-stone-900 dark:text-stone-100">{m.name}</td>
                 <td className="p-4 text-stone-600 dark:text-stone-300">{m.province}</td>
-                <td className="p-4 text-stone-600 dark:text-stone-300">{m.altitude} mdpl</td>
+                <td className="p-4 text-stone-600 dark:text-stone-300">{formatNumber(m.altitude)} mdpl</td>
                 <td className="p-4">{getDifficultyBadge(m.difficulty)}</td>
                 <td className="p-4 text-center">
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -280,18 +316,18 @@ export default function AdminMountainsPage() {
             ))}
             {paginated.length === 0 && (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-stone-500 dark:text-stone-400">Tidak ada data gunung.</td>
+                <td colSpan={6} className="p-8 text-center text-stone-500 dark:text-stone-400">Tidak ada data gunung.</td>
               </tr>
             )}
           </tbody>
         </table>
-        
+
         {totalPages > 1 && (
           <div className="p-4 border-t border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900/50 flex justify-between items-center text-sm">
             <span className="text-stone-500 dark:text-stone-400">Halaman {page} dari {totalPages}</span>
             <div className="flex gap-2">
-              <button disabled={page === 1} onClick={() => setPage(p=>p-1)} className="px-3 py-1 rounded bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 disabled:opacity-50">Prev</button>
-              <button disabled={page === totalPages} onClick={() => setPage(p=>p+1)} className="px-3 py-1 rounded bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 disabled:opacity-50">Next</button>
+              <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1 rounded bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 disabled:opacity-50">Prev</button>
+              <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="px-3 py-1 rounded bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 disabled:opacity-50">Next</button>
             </div>
           </div>
         )}
@@ -301,8 +337,8 @@ export default function AdminMountainsPage() {
       {isPanelOpen && (
         <>
           <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-40 transition-opacity" onClick={() => !saving && setIsPanelOpen(false)}></div>
-          <div className="fixed inset-y-0 right-0 z-50 w-full md:w-96 bg-white dark:bg-stone-900 shadow-2xl border-l border-stone-200 dark:border-stone-700 flex flex-col animate-in slide-in-from-right duration-300">
-            
+          <div className="fixed inset-y-0 right-0 z-50 w-full md:w-[420px] bg-white dark:bg-stone-900 shadow-2xl border-l border-stone-200 dark:border-stone-700 flex flex-col animate-in slide-in-from-right duration-300">
+
             <div className="p-6 border-b border-stone-200 dark:border-stone-700 flex items-center justify-between shrink-0 bg-stone-50 dark:bg-stone-900/50">
               <h2 className="text-xl font-bold text-stone-900 dark:text-stone-100">{isEditing ? 'Edit Gunung' : 'Tambah Gunung'}</h2>
               <button onClick={() => !saving && setIsPanelOpen(false)} className="text-stone-500 hover:text-stone-700 dark:hover:text-stone-300">
@@ -312,49 +348,52 @@ export default function AdminMountainsPage() {
 
             <div className="flex-1 overflow-y-auto p-6">
               <form id="mountain-form" onSubmit={handleSave} className="space-y-5">
-                
-                {/* Foto Section */}
+
+                {/* Nama Gunung */}
                 <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">Foto Gunung</label>
-                  <div className="flex items-center gap-4">
-                    {imagePreview ? (
-                      <img src={imagePreview} alt="Preview" className="w-20 h-20 rounded-lg object-cover border border-stone-200 dark:border-stone-700" />
-                    ) : (
-                      <div className="w-20 h-20 rounded-lg border-2 border-dashed border-stone-300 dark:border-stone-700 flex items-center justify-center text-stone-400 bg-stone-50 dark:bg-stone-800">
-                        <ImageIcon className="w-6 h-6" />
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <label className="inline-block px-3 py-1.5 bg-stone-100 dark:bg-stone-800 border border-stone-300 dark:border-stone-600 rounded-lg text-sm font-medium text-stone-700 dark:text-stone-300 cursor-pointer hover:bg-stone-200 dark:hover:bg-stone-700">
-                        Pilih File
-                        <input type="file" accept=".jpg,.jpeg,.png,.webp" onChange={handleFileChange} className="hidden" />
-                      </label>
-                      {imageFile && <p className="text-xs text-emerald-600 mt-1 truncate max-w-[150px]">{imageFile.name}</p>}
-                      {imageError && <p className="text-xs text-red-500 mt-1">{imageError}</p>}
-                    </div>
-                  </div>
+                  <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">Nama Gunung <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Contoh: Semeru"
+                    className="w-full px-3 py-2 border border-stone-300 dark:border-stone-600 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
                 </div>
 
+                {/* Provinsi */}
                 <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">Nama Gunung</label>
-                  <input type="text" required value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 border border-stone-300 dark:border-stone-600 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500" />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">Provinsi</label>
-                  <select required value={formData.province} onChange={e=>setFormData({...formData, province: e.target.value})} className="w-full px-3 py-2 border border-stone-300 dark:border-stone-600 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500">
+                  <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">Provinsi <span className="text-red-500">*</span></label>
+                  <select
+                    required
+                    value={formData.province}
+                    onChange={e => setFormData({ ...formData, province: e.target.value })}
+                    className="w-full px-3 py-2 border border-stone-300 dark:border-stone-600 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
                     {PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 </div>
 
+                {/* Ketinggian & Kesulitan */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">Ketinggian (mdpl)</label>
-                    <input type="number" required min="0" value={formData.altitude} onChange={e=>setFormData({...formData, altitude: Number(e.target.value)})} className="w-full px-3 py-2 border border-stone-300 dark:border-stone-600 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500" />
+                    <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">Ketinggian (mdpl) <span className="text-red-500">*</span></label>
+                    <NumberInput
+                      value={formData.altitude || 0}
+                      onChange={val => setFormData({ ...formData, altitude: val })}
+                      placeholder="Contoh: 3.676"
+                      min={0}
+                      className="w-full px-3 py-2 border border-stone-300 dark:border-stone-600 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">Kesulitan</label>
-                    <select value={formData.difficulty} onChange={e=>setFormData({...formData, difficulty: e.target.value as any})} className="w-full px-3 py-2 border border-stone-300 dark:border-stone-600 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500">
+                    <select
+                      value={formData.difficulty}
+                      onChange={e => setFormData({ ...formData, difficulty: e.target.value as Mountain['difficulty'] })}
+                      className="w-full px-3 py-2 border border-stone-300 dark:border-stone-600 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
                       <option value="easy">Mudah</option>
                       <option value="medium">Sedang</option>
                       <option value="hard">Sulit</option>
@@ -363,26 +402,66 @@ export default function AdminMountainsPage() {
                   </div>
                 </div>
 
+                {/* Deskripsi */}
                 <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">Deskripsi (Min 100 char)</label>
-                  <textarea required minLength={100} rows={5} value={formData.description} onChange={e=>setFormData({...formData, description: e.target.value})} className="w-full px-3 py-2 border border-stone-300 dark:border-stone-600 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500 resize-none" />
-                  <div className="text-right text-xs text-stone-500">{(formData.description?.length || 0)} karakter</div>
+                  <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">
+                    Deskripsi <span className="text-red-500">*</span>
+                    <span className="font-normal text-stone-400 ml-1">(min. 100 karakter)</span>
+                  </label>
+                  <textarea
+                    required
+                    minLength={100}
+                    rows={5}
+                    value={formData.description}
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Deskripsikan gunung secara lengkap..."
+                    className="w-full px-3 py-2 border border-stone-300 dark:border-stone-600 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                  />
+                  <div className={`text-right text-xs ${descLen < 100 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                    {descLen} / 100 karakter minimum
+                  </div>
                 </div>
 
+                {/* Basecamp */}
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">Lokasi Basecamp</label>
-                  <input type="text" value={formData.baseCamp} onChange={e=>setFormData({...formData, baseCamp: e.target.value})} className="w-full px-3 py-2 border border-stone-300 dark:border-stone-600 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500" />
+                  <input
+                    type="text"
+                    value={formData.baseCamp}
+                    onChange={e => setFormData({ ...formData, baseCamp: e.target.value })}
+                    placeholder="Contoh: Desa Ranupane, Malang"
+                    className="w-full px-3 py-2 border border-stone-300 dark:border-stone-600 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
                 </div>
 
+                {/* Biaya Pendakian */}
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">Biaya Pendakian (Rp)</label>
-                  <input type="number" min="0" value={formData.entryFee} onChange={e=>setFormData({...formData, entryFee: Number(e.target.value)})} className="w-full px-3 py-2 border border-stone-300 dark:border-stone-600 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500" />
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm font-medium pointer-events-none">Rp</span>
+                    <NumberInput
+                      value={formData.entryFee || 0}
+                      onChange={val => setFormData({ ...formData, entryFee: val })}
+                      placeholder="Contoh: 25.000"
+                      min={0}
+                      className="w-full pl-9 pr-3 py-2 border border-stone-300 dark:border-stone-600 rounded-lg bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
                 </div>
 
+                {/* Status */}
                 <div className="flex items-center justify-between py-2">
-                  <span className="text-sm font-semibold text-stone-900 dark:text-stone-100">Status Pendakian</span>
+                  <div>
+                    <span className="text-sm font-semibold text-stone-900 dark:text-stone-100">Status Pendakian</span>
+                    <p className="text-xs text-stone-400 mt-0.5">{formData.isOpen ? 'Dibuka untuk pendaki' : 'Ditutup sementara'}</p>
+                  </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" checked={formData.isOpen} onChange={e => setFormData({...formData, isOpen: e.target.checked})} />
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={formData.isOpen}
+                      onChange={e => setFormData({ ...formData, isOpen: e.target.checked })}
+                    />
                     <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer dark:bg-stone-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                   </label>
                 </div>
@@ -390,13 +469,25 @@ export default function AdminMountainsPage() {
             </div>
 
             <div className="p-4 border-t border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 shrink-0">
-              <button 
+              {descLen < 100 && descLen > 0 && (
+                <p className="text-xs text-amber-500 mb-2 text-center">
+                  Deskripsi kurang {100 - descLen} karakter lagi
+                </p>
+              )}
+              <button
                 form="mountain-form"
-                type="submit" 
-                disabled={saving || (formData.description?.length || 0) < 100}
-                className="w-full py-3 rounded-xl bg-emerald-600 dark:bg-emerald-500 text-white font-bold hover:bg-emerald-700 dark:hover:bg-emerald-600 disabled:opacity-50 transition-colors flex justify-center items-center gap-2"
+                type="submit"
+                disabled={saving}
+                className="w-full py-3 rounded-xl bg-emerald-600 dark:bg-emerald-500 text-white font-bold hover:bg-emerald-700 dark:hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex justify-center items-center gap-2"
               >
-                {saving ? <><Loader2 className="w-5 h-5 animate-spin" /> Menyimpan...</> : 'Simpan Gunung'}
+                {saving ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Menyimpan...</span>
+                  </>
+                ) : (
+                  isEditing ? '💾 Perbarui Gunung' : '✅ Simpan Gunung'
+                )}
               </button>
             </div>
           </div>
@@ -408,12 +499,12 @@ export default function AdminMountainsPage() {
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-stone-900 rounded-2xl max-w-sm w-full p-6 shadow-2xl animate-in zoom-in-95">
             <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 mb-2">Hapus Gunung?</h3>
-            <p className="text-stone-500 dark:text-stone-400 text-sm mb-6">Tindakan ini tidak dapat dibatalkan. Foto gunung terkait juga akan dihapus.</p>
+            <p className="text-stone-500 dark:text-stone-400 text-sm mb-6">Tindakan ini tidak dapat dibatalkan. Data gunung akan dihapus permanen dari database.</p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteConfirmId(null)} className="flex-1 py-2 rounded-lg border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800">
                 Batal
               </button>
-              <button onClick={() => handleDelete(deleteConfirmId)} className="flex-1 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700">
+              <button onClick={() => handleDelete(deleteConfirmId)} className="flex-1 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 font-medium">
                 Hapus
               </button>
             </div>

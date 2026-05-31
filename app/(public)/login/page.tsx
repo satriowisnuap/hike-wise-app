@@ -3,7 +3,7 @@
 import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithPopup, signOut, GoogleAuthProvider } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { toast } from 'sonner';
@@ -21,11 +21,44 @@ function LoginContent() {
         e.preventDefault();
         setLoading(true);
         try {
-            await signInWithEmailAndPassword(auth, email, password);
-            toast.success('Berhasil masuk');
-            router.push('/user/dashboard');
+            const result = await signInWithEmailAndPassword(auth, email, password);
+            const userDocRef = doc(db, 'users', result.user.uid);
+            const userDoc = await getDoc(userDocRef);
+
+            if (userDoc.exists()) {
+                const profile = userDoc.data();
+                if (profile.suspended) {
+                    await signOut(auth);
+                    toast.error('Akun Anda telah ditangguhkan. Hubungi admin.');
+                    return;
+                }
+                toast.success('Berhasil masuk');
+                if (profile.role === 'admin') {
+                    router.push('/admin/dashboard');
+                } else {
+                    router.push('/user/dashboard');
+                }
+            } else {
+                toast.success('Berhasil masuk');
+                router.push('/user/dashboard');
+            }
         } catch (error: any) {
-            toast.error('Email atau kata sandi salah');
+            const code = error?.code || '';
+            if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+                toast.error('Email atau kata sandi salah.');
+            } else if (code === 'auth/invalid-email') {
+                toast.error('Format email tidak valid.');
+            } else if (code === 'auth/user-disabled') {
+                toast.error('Akun Anda telah dinonaktifkan. Hubungi admin.');
+            } else if (code === 'auth/operation-not-allowed') {
+                toast.error('Login email/kata sandi belum diaktifkan. Hubungi administrator.');
+            } else if (code === 'auth/too-many-requests') {
+                toast.error('Terlalu banyak percobaan login. Coba lagi beberapa saat kemudian.');
+            } else if (code === 'auth/network-request-failed') {
+                toast.error('Gagal terhubung ke server. Periksa koneksi internet Anda.');
+            } else {
+                toast.error('Gagal masuk. Periksa email dan kata sandi Anda.');
+            }
         } finally {
             setLoading(false);
         }
@@ -40,6 +73,8 @@ function LoginContent() {
             const userDocRef = doc(db, 'users', user.uid);
             const userDoc = await getDoc(userDocRef);
 
+            let role: string = 'user';
+
             if (!userDoc.exists()) {
                 await setDoc(userDocRef, {
                     uid: user.uid,
@@ -51,12 +86,26 @@ function LoginContent() {
                     suspended: false,
                     createdAt: Timestamp.now(),
                 });
+            } else {
+                const profile = userDoc.data();
+                if (profile.suspended) {
+                    await signOut(auth);
+                    toast.error('Akun Anda telah ditangguhkan. Hubungi admin.');
+                    return;
+                }
+                role = profile.role || 'user';
             }
 
             toast.success('Berhasil masuk dengan Google');
-            router.push('/user/dashboard');
+            if (role === 'admin') {
+                router.push('/admin/dashboard');
+            } else {
+                router.push('/user/dashboard');
+            }
         } catch (error: any) {
-            toast.error(error.message || 'Gagal masuk dengan Google');
+            if (error.code !== 'auth/popup-closed-by-user') {
+                toast.error(error.message || 'Gagal masuk dengan Google');
+            }
         }
     };
 

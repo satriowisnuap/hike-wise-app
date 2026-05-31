@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword, updateProfile, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { toast } from 'sonner';
@@ -49,7 +49,20 @@ export default function RegisterPage() {
             toast.success('Pendaftaran berhasil!');
             router.push('/user/dashboard');
         } catch (error: any) {
-            toast.error(error.message || 'Gagal mendaftar');
+            const code = error?.code || '';
+            if (code === 'auth/email-already-in-use') {
+                toast.error('Email ini sudah terdaftar. Silakan gunakan email lain atau masuk.');
+            } else if (code === 'auth/invalid-email') {
+                toast.error('Format email tidak valid.');
+            } else if (code === 'auth/weak-password') {
+                toast.error('Kata sandi terlalu lemah. Gunakan minimal 8 karakter.');
+            } else if (code === 'auth/operation-not-allowed') {
+                toast.error('Pendaftaran email/kata sandi belum diaktifkan. Hubungi administrator.');
+            } else if (code === 'auth/network-request-failed') {
+                toast.error('Gagal terhubung ke server. Periksa koneksi internet Anda.');
+            } else {
+                toast.error(error.message || 'Gagal mendaftar. Coba lagi.');
+            }
         } finally {
             setLoading(false);
         }
@@ -64,6 +77,8 @@ export default function RegisterPage() {
             const userDocRef = doc(db, 'users', user.uid);
             const userDoc = await getDoc(userDocRef);
 
+            let role: string = 'user';
+
             if (!userDoc.exists()) {
                 await setDoc(userDocRef, {
                     uid: user.uid,
@@ -75,11 +90,26 @@ export default function RegisterPage() {
                     suspended: false,
                     createdAt: Timestamp.now(),
                 });
+            } else {
+                const profile = userDoc.data();
+                if (profile.suspended) {
+                    await signOut(auth);
+                    toast.error('Akun Anda telah ditangguhkan. Hubungi admin.');
+                    return;
+                }
+                role = profile.role || 'user';
             }
+
             toast.success('Berhasil masuk dengan Google');
-            router.push('/user/dashboard');
+            if (role === 'admin') {
+                router.push('/admin/dashboard');
+            } else {
+                router.push('/user/dashboard');
+            }
         } catch (error: any) {
-            toast.error(error.message || 'Gagal masuk dengan Google');
+            if (error.code !== 'auth/popup-closed-by-user') {
+                toast.error(error.message || 'Gagal masuk dengan Google');
+            }
         }
     };
 
