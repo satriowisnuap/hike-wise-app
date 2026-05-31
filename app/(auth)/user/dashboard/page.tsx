@@ -1,12 +1,30 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import Avatar from '@/components/Avatar';
 import Link from 'next/link';
 import { Map, Briefcase, ShieldCheck, MapPin, Leaf, MessageSquare } from 'lucide-react';
+import { db } from '@/lib/firebase';
+import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { TrailReport } from '@/types';
 
 export default function Dashboard() {
     const { userProfile } = useAuth();
+    const [reports, setReports] = useState<TrailReport[]>([]);
+
+    useEffect(() => {
+        const q = query(
+            collection(db, 'reports'),
+            where('status', '==', 'approved'),
+            orderBy('createdAt', 'desc'),
+            limit(3)
+        );
+        const unsub = onSnapshot(q, (snapshot) => {
+            setReports(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as TrailReport)));
+        });
+        return () => unsub();
+    }, []);
 
     if (!userProfile) return null;
 
@@ -120,56 +138,39 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* Community Feed - Mock */}
-                <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 p-6 rounded-2xl relative overflow-hidden">
+                {/* Live Community Feed */}
+                <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 p-6 rounded-2xl relative overflow-hidden pb-16">
                     <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100 mb-4">Live Komunitas</h2>
                     <div className="space-y-4">
-                        <div className="flex gap-3">
-                            <Avatar name="Andi S" size="sm" />
-                            <div>
-                                <p className="text-sm font-medium text-stone-900 dark:text-stone-100">
-                                    Andi S{' '}
-                                    <span className="text-stone-500 dark:text-stone-400 font-normal">
-                                        di Gunung Rinjani
-                                    </span>
-                                </p>
-                                <p className="text-sm text-stone-600 dark:text-stone-400">
-                                    &quot;Jalur Sembalun cerah berawan. Aman terkendali.&quot;
-                                </p>
+                        {reports.map((report, idx) => (
+                            <div 
+                                key={report.id} 
+                                className={`flex gap-3 ${idx === reports.length - 1 && reports.length >= 3 ? 'relative before:absolute before:inset-0 before:bg-gradient-to-b before:from-transparent before:to-white dark:before:to-stone-900' : ''}`}
+                            >
+                                <Avatar name={report.userName} size="sm" />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-stone-900 dark:text-stone-100">
+                                        {report.userName}{' '}
+                                        <span className="text-stone-500 dark:text-stone-400 font-normal">
+                                            di {report.mountainName}
+                                        </span>
+                                    </p>
+                                    <p className="text-sm text-stone-600 dark:text-stone-400 mt-0.5 break-words line-clamp-2">
+                                        &quot;{report.description}&quot;
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                        <div className="flex gap-3">
-                            <Avatar name="Citra D" size="sm" />
-                            <div>
-                                <p className="text-sm font-medium text-stone-900 dark:text-stone-100">
-                                    Citra D{' '}
-                                    <span className="text-stone-500 dark:text-stone-400 font-normal">
-                                        di Gunung Prau
-                                    </span>
-                                </p>
-                                <p className="text-sm text-stone-600 dark:text-stone-400">
-                                    &quot;Suhu mencapai 5 derajat, siapkan jaket tebal!&quot;
-                                </p>
+                        ))}
+                        {reports.length === 0 && (
+                            <div className="text-center py-6 text-stone-500 dark:text-stone-400 text-sm">
+                                <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                                <p>Belum ada laporan komunitas.</p>
                             </div>
-                        </div>
-                        <div className="flex gap-3 relative before:absolute before:inset-0 before:bg-gradient-to-b before:from-transparent before:to-white dark:before:to-stone-900">
-                            <Avatar name="Gilang" size="sm" />
-                            <div>
-                                <p className="text-sm font-medium text-stone-900 dark:text-stone-100">
-                                    Gilang{' '}
-                                    <span className="text-stone-500 dark:text-stone-400 font-normal">
-                                        di Gunung Semeru
-                                    </span>
-                                </p>
-                                <p className="text-sm text-stone-600 dark:text-stone-400">
-                                    &quot;Barter sampah di Ranu Kumbolo sukses bawa turun 5kg.&quot;
-                                </p>
-                            </div>
-                        </div>
+                        )}
                     </div>
                     <Link
                         href="/user/community"
-                        className="absolute bottom-4 left-0 right-0 text-center text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:underline bg-white/80 dark:bg-stone-900/80 backdrop-blur-sm py-2"
+                        className="absolute bottom-0 left-0 right-0 text-center text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:underline bg-white/80 dark:bg-stone-900/80 backdrop-blur-sm py-3 border-t border-stone-100 dark:border-stone-800"
                     >
                         Lihat semua laporan
                     </Link>

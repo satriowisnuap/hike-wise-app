@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { TrailReport } from '@/types';
 import Avatar from '@/components/Avatar';
 import { toast } from 'sonner';
-import { MessageSquare, CheckCircle, XCircle, Cloud, Search, Filter } from 'lucide-react';
+import { MessageSquare, CheckCircle, XCircle, Cloud, Search, Filter, Trash2 } from 'lucide-react';
 import { checkAndAwardAchievements } from '@/lib/achievement-checker';
 
 export default function AdminReportsPage() {
@@ -18,6 +18,9 @@ export default function AdminReportsPage() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Delete Dialog
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'reports'), where('status', '==', activeTab), orderBy('createdAt', 'desc'));
@@ -40,6 +43,9 @@ export default function AdminReportsPage() {
     }
   };
 
+  const selectedReport = reports.find(r => r.id === rejectingId);
+  const isCurrentlyApproved = selectedReport?.status === 'approved';
+
   const handleReject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rejectingId) return;
@@ -49,13 +55,23 @@ export default function AdminReportsPage() {
         status: 'rejected', 
         rejectionNote: rejectNote 
       });
-      toast.success('Laporan ditolak');
+      toast.success(isCurrentlyApproved ? 'Laporan dinonaktifkan' : 'Laporan ditolak');
       setRejectingId(null);
       setRejectNote('');
     } catch (err) {
-      toast.error('Gagal menolak laporan');
+      toast.error(isCurrentlyApproved ? 'Gagal menonaktifkan laporan' : 'Gagal menolak laporan');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'reports', id));
+      toast.success('Laporan berhasil dihapus');
+      setDeletingId(null);
+    } catch (err) {
+      toast.error('Gagal menghapus laporan');
     }
   };
 
@@ -151,7 +167,30 @@ export default function AdminReportsPage() {
                     <CheckCircle className="w-4 h-4" /> Setujui Laporan
                   </button>
                   <button onClick={() => setRejectingId(report.id)} className="w-full py-2.5 rounded-xl border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 text-sm font-bold hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors flex justify-center items-center gap-2">
-                    <XCircle className="w-4 h-4" /> Tolak
+                    <XCircle className="w-4 h-4" /> Tolak Laporan
+                  </button>
+                  <button onClick={() => setDeletingId(report.id)} className="w-full py-2.5 rounded-xl border border-stone-200 dark:border-stone-800 text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-300 text-sm font-bold hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors flex justify-center items-center gap-2">
+                    <Trash2 className="w-4 h-4" /> Hapus Laporan
+                  </button>
+                </div>
+              )}
+              {activeTab === 'approved' && (
+                <div className="flex flex-col gap-2 mt-auto">
+                  <button onClick={() => setRejectingId(report.id)} className="w-full py-2.5 rounded-xl border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 text-sm font-bold hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors flex justify-center items-center gap-2">
+                    <XCircle className="w-4 h-4" /> Nonaktifkan Laporan
+                  </button>
+                  <button onClick={() => setDeletingId(report.id)} className="w-full py-2.5 rounded-xl border border-stone-200 dark:border-stone-800 text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-300 text-sm font-bold hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors flex justify-center items-center gap-2">
+                    <Trash2 className="w-4 h-4" /> Hapus Laporan
+                  </button>
+                </div>
+              )}
+              {activeTab === 'rejected' && (
+                <div className="flex flex-col gap-2 mt-auto">
+                  <button onClick={() => handleApprove(report)} className="w-full py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-colors flex justify-center items-center gap-2">
+                    <CheckCircle className="w-4 h-4" /> Setujui Laporan
+                  </button>
+                  <button onClick={() => setDeletingId(report.id)} className="w-full py-2.5 rounded-xl border border-stone-200 dark:border-stone-800 text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-300 text-sm font-bold hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors flex justify-center items-center gap-2">
+                    <Trash2 className="w-4 h-4" /> Hapus Laporan
                   </button>
                 </div>
               )}
@@ -168,20 +207,28 @@ export default function AdminReportsPage() {
         )}
       </div>
 
-      {/* Reject Dialog */}
+      {/* Reject / Deactivate Dialog */}
       {rejectingId && (
         <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white dark:bg-stone-900 w-full max-w-md rounded-2xl border border-stone-200 dark:border-stone-700 shadow-2xl overflow-hidden animate-in zoom-in-95">
             <form onSubmit={handleReject} className="p-6 space-y-4">
-              <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">Tolak Laporan</h3>
-              <p className="text-sm text-stone-500 dark:text-stone-400 mb-2">Laporan yang ditolak tidak akan tampil di halaman komunitas. Berikan alasan penolakan untuk reporter.</p>
+              <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">
+                {isCurrentlyApproved ? 'Nonaktifkan Laporan' : 'Tolak Laporan'}
+              </h3>
+              <p className="text-sm text-stone-500 dark:text-stone-400 mb-2">
+                {isCurrentlyApproved 
+                  ? 'Laporan yang dinonaktifkan tidak akan tampil di halaman komunitas. Berikan alasan penonaktifan untuk reporter.' 
+                  : 'Laporan yang ditolak tidak akan tampil di halaman komunitas. Berikan alasan penolakan untuk reporter.'}
+              </p>
               
               <div className="space-y-2">
-                <label className="block text-xs font-semibold text-stone-900 dark:text-stone-100">Alasan Penolakan</label>
+                <label className="block text-xs font-semibold text-stone-900 dark:text-stone-100">
+                  {isCurrentlyApproved ? 'Alasan Penonaktifan' : 'Alasan Penolakan'}
+                </label>
                 <textarea 
                   required rows={3}
                   value={rejectNote} onChange={e => setRejectNote(e.target.value)}
-                  placeholder="Misal: Info tidak relevan, mengandung unsur SARA..."
+                  placeholder={isCurrentlyApproved ? 'Misal: Laporan sudah tidak relevan, data kurang akurat...' : 'Misal: Info tidak relevan, mengandung unsur SARA...'}
                   className="w-full px-3 py-2 border border-stone-300 dark:border-stone-600 rounded-lg bg-stone-50 dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-red-500 resize-none"
                 />
               </div>
@@ -191,10 +238,41 @@ export default function AdminReportsPage() {
                   Batal
                 </button>
                 <button type="submit" disabled={submitting || !rejectNote} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 disabled:opacity-50">
-                  {submitting ? 'Menyimpan...' : 'Tolak Laporan'}
+                  {submitting ? 'Menyimpan...' : (isCurrentlyApproved ? 'Nonaktifkan Laporan' : 'Tolak Laporan')}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deletingId && (
+        <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-stone-900 w-full max-w-md rounded-2xl border border-stone-200 dark:border-stone-700 shadow-2xl overflow-hidden animate-in zoom-in-95">
+            <div className="p-6 space-y-4">
+              <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100">Hapus Laporan</h3>
+              <p className="text-sm text-stone-500 dark:text-stone-400">
+                Apakah Anda yakin ingin menghapus laporan ini secara permanen? Tindakan ini tidak dapat dibatalkan.
+              </p>
+              
+              <div className="flex gap-3 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setDeletingId(null)} 
+                  className="flex-1 py-2.5 rounded-xl border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 font-bold hover:bg-stone-50 dark:hover:bg-stone-800"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => handleDelete(deletingId)} 
+                  className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700"
+                >
+                  Hapus Permanen
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

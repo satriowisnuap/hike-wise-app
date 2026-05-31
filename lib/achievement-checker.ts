@@ -1,7 +1,22 @@
-import { collection, getDocs, query, where, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, query, where, addDoc, updateDoc, doc, getDoc, increment } from 'firebase/firestore';
 import { db } from './firebase';
 import { Timestamp } from 'firebase/firestore';
 import { Trip, TrailReport, Achievement, UserAchievement, User } from '@/types';
+
+export const ALL_ACHIEVEMENTS: Achievement[] = [
+  {id:'first-step', name:'Langkah Pertama', icon:'🥾', category:'explorer', description:'Selesaikan trip pertamamu', triggerCondition: 'first-step', isActive: true},
+  {id:'mountain-hopper', name:'Mountain Hopper', icon:'🏔️', category:'explorer', description:'Kunjungi 3 gunung berbeda', triggerCondition: 'mountain-hopper', isActive: true},
+  {id:'peak-collector', name:'Kolektor Puncak', icon:'🗻', category:'explorer', description:'Taklukkan 5 gunung berbeda', triggerCondition: 'peak-collector', isActive: true},
+  {id:'eco-starter', name:'Eco Starter', icon:'🌱', category:'eco', description:'Buat eco log pertamamu', triggerCondition: 'eco-starter', isActive: true},
+  {id:'waste-warrior', name:'Waste Warrior', icon:'♻️', category:'eco', description:'Kumpulkan 5kg sampah total', triggerCondition: 'waste-warrior', isActive: true},
+  {id:'forest-guardian', name:'Penjaga Hutan', icon:'🌳', category:'eco', description:'Raih eco score 100+', triggerCondition: 'forest-guardian', isActive: true},
+  {id:'team-player', name:'Tim Solid', icon:'👥', category:'explorer', description:'Trip dengan 4+ anggota', triggerCondition: 'team-player', isActive: true},
+  {id:'prepared-hiker', name:'Pendaki Siap', icon:'🎒', category:'safety', description:'Buat 3 packing list', triggerCondition: 'prepared-hiker', isActive: true},
+  {id:'safety-first', name:'Safety First', icon:'🛡️', category:'safety', description:'Lakukan 5 safety check', triggerCondition: 'safety-first', isActive: true},
+  {id:'trail-reporter', name:'Reporter Jalur', icon:'📢', category:'community', description:'Submit 3 laporan jalur', triggerCondition: 'trail-reporter', isActive: true},
+  {id:'trusted-reporter', name:'Reporter Terpercaya', icon:'⭐', category:'community', description:'Raih 5 laporan disetujui', triggerCondition: 'trusted-reporter', isActive: true},
+  {id:'veteran-hiker', name:'Veteran Pendaki', icon:'🎯', category:'explorer', description:'Selesaikan 10 trip', triggerCondition: 'veteran-hiker', isActive: true}
+];
 
 export async function checkAndAwardAchievements(userId: string): Promise<string[]> {
   const newAwards: string[] = [];
@@ -9,18 +24,16 @@ export async function checkAndAwardAchievements(userId: string): Promise<string[
   try {
     // 1. Fetch user profile
     const userDocRef = doc(db, 'users', userId);
-    
-    // In a real implementation we'd get the actual user document.
-    // For this demonstration, we'll fetch everything needed and update conditionally.
+    const userSnap = await getDoc(userDocRef);
+    const userData = userSnap.exists() ? (userSnap.data() as User) : null;
 
     // 2. Fetch existing user achievements
     const qa = query(collection(db, 'userAchievements'), where('userId', '==', userId));
     const uaSnap = await getDocs(qa);
     const earnedAchievementIds = new Set(uaSnap.docs.map(d => d.data().achievementId));
 
-    // 3. Fetch active achievements
-    const activeAchievementsSnap = await getDocs(query(collection(db, 'achievements'), where('isActive', '==', true)));
-    const allAchievements = activeAchievementsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Achievement));
+    // 3. Use active achievements from hardcoded list
+    const allAchievements = ALL_ACHIEVEMENTS.filter(a => a.isActive);
     
     // We only care about unearned ones
     const unearned = allAchievements.filter(a => !earnedAchievementIds.has(a.id));
@@ -63,7 +76,7 @@ export async function checkAndAwardAchievements(userId: string): Promise<string[
       if (tc === 'peak-collector' && uniqueMountains.size >= 5) awarded = true;
       if (tc === 'eco-starter' && tripsWithEcoLog >= 1) awarded = true;
       if (tc === 'waste-warrior' && totalWasteKg >= 5) awarded = true;
-      // Note: 'forest-guardian' depends on user.ecoScore >= 100 which requires getting user doc first.
+      if (tc === 'forest-guardian' && userData && userData.ecoScore >= 100) awarded = true;
       if (tc === 'team-player' && completedTrips.some(t => t.members >= 4)) awarded = true;
       if (tc === 'prepared-hiker' && tripsWithPacking >= 3) awarded = true;
       if (tc === 'safety-first' && tripsWithSafety >= 5) awarded = true;
@@ -88,9 +101,7 @@ export async function checkAndAwardAchievements(userId: string): Promise<string[
     }
 
     if (addedEcoScore > 0) {
-      // we would use a numeric increment here if we fetched the user doc, but atomic update is better
-      // Due to simplicity in this context without `increment` imported:
-      // In a real app we import increment from firebase/firestore and use updateDoc(userDocRef, { ecoScore: increment(addedEcoScore) })
+      await updateDoc(userDocRef, { ecoScore: increment(addedEcoScore) });
     }
 
   } catch (error) {

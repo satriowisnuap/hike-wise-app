@@ -50,6 +50,17 @@ export default function PackingListPage() {
     fetchTrips();
   }, [user]);
 
+  useEffect(() => {
+    const trip = plannedTrips.find(t => t.id === selectedTripId);
+    if (trip) {
+      setDuration(trip.duration);
+      setMembers(trip.members);
+      if (trip.mountainDifficulty) {
+        setDifficulty(trip.mountainDifficulty);
+      }
+    }
+  }, [selectedTripId, plannedTrips]);
+
   const handleGenerate = () => {
     const input: PackingInput = { duration, tripType, season, members, difficulty };
     const result = generatePackingList(input);
@@ -107,6 +118,21 @@ export default function PackingListPage() {
         <div className="lg:col-span-4 space-y-6 print:hidden">
           <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 p-6 space-y-6 shadow-sm">
             
+            {/* Trip Selector */}
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">Pilih Trip Terencana (Opsional)</label>
+              <select 
+                value={selectedTripId}
+                onChange={e => setSelectedTripId(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="">-- Pilih Trip --</option>
+                {plannedTrips.map(t => (
+                  <option key={t.id} value={t.id}>{t.title ? `${t.title} (${t.mountainName})` : t.mountainName}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Trip Type */}
             <div className="space-y-3">
               <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">Tipe Perjalanan</label>
@@ -233,16 +259,6 @@ export default function PackingListPage() {
                       <Printer className="w-5 h-5" />
                     </button>
                     <div className="flex flex-1 sm:flex-none items-center gap-2">
-                      <select 
-                        value={selectedTripId}
-                        onChange={e => setSelectedTripId(e.target.value)}
-                        className="w-full sm:w-48 px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-sm text-stone-900 dark:text-stone-100 outline-none"
-                      >
-                        <option value="">Pilih Trip...</option>
-                        {plannedTrips.map(t => (
-                          <option key={t.id} value={t.id}>{t.mountainName}</option>
-                        ))}
-                      </select>
                       <button 
                         onClick={handleSaveToTrip}
                         disabled={!selectedTripId || saving}

@@ -30,6 +30,8 @@ export interface Trip {
   userId: string;
   mountainId: string;
   mountainName: string;
+  title: string;
+  mountainDifficulty: 'easy' | 'medium' | 'hard' | 'expert';
   startDate: Timestamp;
   endDate: Timestamp;
   duration: number;

@@ -24,6 +24,7 @@ export default function PlannerPage() {
 
   // Form State
   const [selectedMountain, setSelectedMountain] = useState<Mountain | null>(null);
+  const [tripTitle, setTripTitle] = useState('');
   const [startDate, setStartDate] = useState<string>('');
   const [duration, setDuration] = useState<number>(2);
   const [members, setMembers] = useState<number>(2);
@@ -79,7 +80,7 @@ export default function PlannerPage() {
   };
 
   const handleSaveTrip = async () => {
-    if (!user || !selectedMountain || !startDate) return;
+    if (!user || !selectedMountain || !startDate || !tripTitle.trim()) return;
     
     setSaving(true);
     try {
@@ -91,6 +92,8 @@ export default function PlannerPage() {
         userId: user.uid,
         mountainId: selectedMountain.id,
         mountainName: selectedMountain.name,
+        title: tripTitle.trim(),
+        mountainDifficulty: selectedMountain.difficulty,
         startDate: Timestamp.fromDate(start),
         endDate: Timestamp.fromDate(end),
         duration,
@@ -237,6 +240,20 @@ export default function PlannerPage() {
         <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
           <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 p-6 space-y-8">
             
+            {/* Trip Title */}
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">
+                Judul Trip
+              </label>
+              <input 
+                type="text"
+                placeholder="Misal: Pendakian Kemerdekaan"
+                value={tripTitle}
+                onChange={(e) => setTripTitle(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 outline-none"
+              />
+            </div>
+            
             {/* Start Date */}
             <div className="space-y-3">
               <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">
@@ -340,7 +357,7 @@ export default function PlannerPage() {
             </button>
             <button
               onClick={handleNextToStep3}
-              disabled={!startDate}
+              disabled={!startDate || !tripTitle.trim()}
               className="flex items-center px-6 py-3 rounded-xl bg-emerald-600 dark:bg-emerald-500 text-white font-medium hover:bg-emerald-700 dark:hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Buat Itinerary <ArrowRight className="w-4 h-4 ml-2" />

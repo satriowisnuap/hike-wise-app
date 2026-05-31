@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-context';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { UserAchievement } from '@/types';
+import { checkAndAwardAchievements } from '@/lib/achievement-checker';
 import { toast } from 'sonner';
 import { Award, Lock, Star } from 'lucide-react';
 
@@ -36,6 +37,9 @@ export default function AchievementsPage() {
     
     const fetchAchievements = async () => {
       try {
+        // Run achievement check to retrospectively award earned achievements
+        await checkAndAwardAchievements(user.uid);
+        
         const q = query(collection(db, 'userAchievements'), where('userId', '==', user.uid));
         const snapshot = await getDocs(q);
         

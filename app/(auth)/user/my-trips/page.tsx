@@ -146,6 +146,23 @@ export default function MyTripsPage() {
     return null;
   };
 
+  let totalEssential = 0;
+  let checkedEssential = 0;
+  const hasPackingList = selectedTrip?.packingList && selectedTrip.packingList.length > 0;
+
+  if (hasPackingList) {
+    selectedTrip.packingList.forEach(cat => {
+      cat.items.forEach(item => {
+        if (item.isEssential) {
+          totalEssential++;
+          if (item.checked) checkedEssential++;
+        }
+      });
+    });
+  }
+
+  const isPackingReady = hasPackingList && checkedEssential === totalEssential && totalEssential > 0;
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20 md:pb-8 flex relative h-full">
       
@@ -205,7 +222,7 @@ export default function MyTripsPage() {
                   <div className="flex-1 min-w-0 flex flex-col justify-between">
                     <div>
                       <div className="flex justify-between items-start mb-1">
-                        <h3 className="font-bold text-stone-900 dark:text-stone-100 truncate">{trip.mountainName}</h3>
+                        <h3 className="font-bold text-stone-900 dark:text-stone-100 truncate">{trip.title || trip.mountainName}</h3>
                         {getStatusBadge(trip.status)}
                       </div>
                       <div className="text-sm text-stone-500 dark:text-stone-400 flex items-center gap-1 mb-2">
@@ -248,9 +265,16 @@ export default function MyTripsPage() {
             {/* Header Detail */}
             <div className="p-4 md:p-6 border-b border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900/50 flex items-start justify-between shrink-0 pt-10 md:pt-6">
               <div>
-                <h2 className="text-xl md:text-2xl font-bold text-stone-900 dark:text-stone-100">{selectedTrip.mountainName}</h2>
+                <h2 className="text-xl md:text-2xl font-bold text-stone-900 dark:text-stone-100">{selectedTrip.title ? `${selectedTrip.title} (${selectedTrip.mountainName})` : selectedTrip.mountainName}</h2>
                 <p className="text-sm text-stone-500 dark:text-stone-400">{formatDate(selectedTrip.startDate)} • {selectedTrip.duration} Hari</p>
-                <div className="mt-3">{getStatusBadge(selectedTrip.status)}</div>
+                <div className="mt-3 flex gap-2 flex-wrap">
+                  {getStatusBadge(selectedTrip.status)}
+                  {selectedTrip.status === 'planned' && (
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${isPackingReady ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                      Wajib: {checkedEssential}/{totalEssential} Terpenuhi
+                    </span>
+                  )}
+                </div>
               </div>
               <button onClick={() => setSelectedTrip(null)} className="p-2 md:hidden rounded-full hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-500">
                 <X className="w-6 h-6" />
@@ -425,12 +449,22 @@ export default function MyTripsPage() {
             {/* Footer Action */}
             <div className="p-4 md:p-6 border-t border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 shrink-0">
               {selectedTrip.status === 'planned' && (
-                <button 
-                  onClick={() => handleStatusChange('ongoing')}
-                  className="w-full py-4 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Play className="w-5 h-5" /> Mulai Pendakian
-                </button>
+                <div className="space-y-3">
+                  {!isPackingReady && (
+                    <p className="text-xs text-red-500 dark:text-red-400 text-center font-medium">
+                      {!hasPackingList 
+                        ? 'Buat packing list terlebih dahulu sebelum memulai pendakian.'
+                        : 'Selesaikan semua item wajib di packing list sebelum memulai pendakian.'}
+                    </p>
+                  )}
+                  <button 
+                    onClick={() => handleStatusChange('ongoing')}
+                    disabled={!isPackingReady}
+                    className="w-full py-4 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600 disabled:bg-stone-300 dark:disabled:bg-stone-700 disabled:text-stone-500 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Play className="w-5 h-5" /> Mulai Pendakian
+                  </button>
+                </div>
               )}
               {selectedTrip.status === 'ongoing' && (
                 <button 
