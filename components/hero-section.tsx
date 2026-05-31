@@ -3,23 +3,81 @@
 import Link from 'next/link';
 import { ArrowRight, ChevronDown, Users, Mountain, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 export default function HeroSection() {
     const [stats, setStats] = useState({ hikers: 0, mountains: 0, trash: 0 });
 
     useEffect(() => {
-        const finalStats = { hikers: 1240, mountains: 87, trash: 2400 };
-        let frame = 0;
-        const interval = setInterval(() => {
-            frame++;
-            setStats({
-                hikers: Math.min(Math.floor((finalStats.hikers / 20) * frame), finalStats.hikers),
-                mountains: Math.min(Math.floor((finalStats.mountains / 20) * frame), finalStats.mountains),
-                trash: Math.min(Math.floor((finalStats.trash / 20) * frame), finalStats.trash),
-            });
-            if (frame >= 20) clearInterval(interval);
-        }, 50);
-        return () => clearInterval(interval);
+        let isMounted = true;
+        let interval: NodeJS.Timeout;
+
+        const fetchStatsAndAnimate = async () => {
+            try {
+                const uSnap = await getDocs(collection(db, 'users'));
+                const mSnap = await getDocs(collection(db, 'mountains'));
+                const tSnap = await getDocs(collection(db, 'trips'));
+
+                if (!isMounted) return;
+
+                const totalHikers = uSnap.size;
+                const totalMountains = mSnap.size;
+                let totalTrash = 0;
+                tSnap.docs.forEach(doc => {
+                    const data = doc.data();
+                    if (data.ecoLog && typeof data.ecoLog.wasteKg === 'number') {
+                        totalTrash += data.ecoLog.wasteKg;
+                    }
+                });
+
+                const hikersCount = totalHikers;
+                const mountainsCount = totalMountains;
+                const trashCount = totalTrash;
+
+                let frame = 0;
+                interval = setInterval(() => {
+                    if (!isMounted) {
+                        clearInterval(interval);
+                        return;
+                    }
+                    frame++;
+                    setStats({
+                        hikers: Math.min(Math.floor((hikersCount / 20) * frame), hikersCount),
+                        mountains: Math.min(Math.floor((mountainsCount / 20) * frame), mountainsCount),
+                        trash: Math.min(Math.floor((trashCount / 20) * frame), trashCount),
+                    });
+                    if (frame >= 20) clearInterval(interval);
+                }, 50);
+            } catch (err) {
+                console.error("Failed to fetch hero stats:", err);
+                if (!isMounted) return;
+
+                // Fallback mock stats in case of query failure
+                const finalStats = { hikers: 1240, mountains: 87, trash: 2400 };
+                let frame = 0;
+                interval = setInterval(() => {
+                    if (!isMounted) {
+                        clearInterval(interval);
+                        return;
+                    }
+                    frame++;
+                    setStats({
+                        hikers: Math.min(Math.floor((finalStats.hikers / 20) * frame), finalStats.hikers),
+                        mountains: Math.min(Math.floor((finalStats.mountains / 20) * frame), finalStats.mountains),
+                        trash: Math.min(Math.floor((finalStats.trash / 20) * frame), finalStats.trash),
+                    });
+                    if (frame >= 20) clearInterval(interval);
+                }, 50);
+            }
+        };
+
+        fetchStatsAndAnimate();
+
+        return () => {
+            isMounted = false;
+            if (interval) clearInterval(interval);
+        };
     }, []);
 
     return (
