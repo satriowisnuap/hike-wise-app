@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, Suspense } from 'react';
+import PasswordInput from '@/components/PasswordInput';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signInWithEmailAndPassword, signInWithPopup, signOut, GoogleAuthProvider } from 'firebase/auth';
@@ -141,19 +142,14 @@ function LoginContent() {
                         className="w-full px-4 py-2 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-colors text-stone-900 dark:text-stone-100"
                     />
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-stone-900 dark:text-stone-100 mb-1">
-                        Kata Sandi
-                    </label>
-                    <input
-                        type="password"
-                        required
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Masukkan kata sandi"
-                        className="w-full px-4 py-2 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-colors text-stone-900 dark:text-stone-100"
-                    />
-                </div>
+                <PasswordInput
+                    label="Kata Sandi"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Masukkan kata sandi"
+                    autoComplete="current-password"
+                />
 
                 <button
                     type="submit"

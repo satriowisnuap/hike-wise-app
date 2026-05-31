@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import PasswordInput from '@/components/PasswordInput';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createUserWithEmailAndPassword, updateProfile, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
@@ -156,34 +157,24 @@ export default function RegisterPage() {
                             className="w-full px-4 py-2 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-colors text-stone-900 dark:text-stone-100"
                         />
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-stone-900 dark:text-stone-100 mb-1">
-                            Kata Sandi
-                        </label>
-                        <input
-                            type="password"
-                            required
-                            minLength={8}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Minimal 8 karakter"
-                            className="w-full px-4 py-2 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-colors text-stone-900 dark:text-stone-100"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-stone-900 dark:text-stone-100 mb-1">
-                            Konfirmasi Kata Sandi
-                        </label>
-                        <input
-                            type="password"
-                            required
-                            minLength={8}
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            placeholder="Ulangi kata sandi"
-                            className="w-full px-4 py-2 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-600 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-colors text-stone-900 dark:text-stone-100"
-                        />
-                    </div>
+                    <PasswordInput
+                        label="Kata Sandi"
+                        required
+                        minLength={8}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Minimal 8 karakter"
+                        autoComplete="new-password"
+                    />
+                    <PasswordInput
+                        label="Konfirmasi Kata Sandi"
+                        required
+                        minLength={8}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Ulangi kata sandi"
+                        autoComplete="new-password"
+                    />
 
                     <button
                         type="submit"
