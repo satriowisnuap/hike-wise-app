@@ -110,7 +110,7 @@ export default function AdminDashboardPage() {
         <div className="max-w-6xl mx-auto space-y-8 pb-8">
             <div>
                 <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100">Dashboard Admin</h1>
-                <p className="text-stone-500 dark:text-stone-400">Ringkasan aktivitas platform TrailMind.</p>
+                <p className="text-stone-500 dark:text-stone-400">Ringkasan aktivitas platform Hike Wise.</p>
             </div>
 
             {/* Stats Cards */}

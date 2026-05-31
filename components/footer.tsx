@@ -1,4 +1,5 @@
-import { Trees, Shield, FileText, Copyright, Mountain } from 'lucide-react';
+import Link from 'next/link';
+import { Trees, Shield, FileText, Copyright } from 'lucide-react';
 
 export default function Footer() {
     return (
@@ -13,20 +14,20 @@ export default function Footer() {
 
                     {/* Links */}
                     <nav className="flex items-center gap-6 text-sm font-medium text-stone-500 dark:text-stone-400">
-                        <a
-                            href="#"
+                        <Link
+                            href="/privacy"
                             className="flex items-center gap-1.5 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
                         >
                             <Shield className="w-4 h-4" />
                             Kebijakan Privasi
-                        </a>
-                        <a
-                            href="#"
+                        </Link>
+                        <Link
+                            href="/terms"
                             className="flex items-center gap-1.5 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
                         >
                             <FileText className="w-4 h-4" />
                             Syarat &amp; Ketentuan
-                        </a>
+                        </Link>
                         <span className="flex items-center gap-1.5">
                             <Copyright className="w-4 h-4" />
                             2026 Hike Wise
@@ -37,3 +38,4 @@ export default function Footer() {
         </footer>
     );
 }
+
