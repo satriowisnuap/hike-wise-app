@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { checkSafety, SafetyInput } from '@/lib/safety-checker';
 import { SafetyResult } from '@/types';
 import { ShieldAlert, RefreshCw, CheckCircle, AlertTriangle, XCircle, Info, ChevronRight, Activity, Thermometer, Users, Mountain, ShieldCheck } from 'lucide-react';
+import Select from '@/components/Select';
 
 export default function SafetyCheckerPage() {
   const [result, setResult] = useState<SafetyResult | null>(null);
@@ -143,17 +144,18 @@ export default function SafetyCheckerPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">Tingkat Kesulitan Gunung</label>
-                <select 
-                  value={mountainDifficulty} 
-                  onChange={e => setMountainDifficulty(e.target.value as any)}
-                  className="w-full px-4 py-3 rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 outline-none appearance-none"
-                >
-                  <option value="easy">Mudah</option>
-                  <option value="medium">Sedang</option>
-                  <option value="hard">Sulit</option>
-                  <option value="expert">Ekstrem</option>
-                </select>
+                <Select
+                  label="Tingkat Kesulitan Gunung"
+                  value={mountainDifficulty}
+                  onChange={(val) => setMountainDifficulty(val as any)}
+                  options={[
+                    { label: 'Mudah', value: 'easy' },
+                    { label: 'Sedang', value: 'medium' },
+                    { label: 'Sulit', value: 'hard' },
+                    { label: 'Ekstrem', value: 'expert' }
+                  ]}
+                  placeholder="Pilih tingkat kesulitan"
+                />
               </div>
 
               <div className="space-y-2">

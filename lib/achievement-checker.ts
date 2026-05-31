@@ -60,7 +60,7 @@ export async function checkAndAwardAchievements(userId: string): Promise<string[
     });
 
     // 5. Fetch context data: Reports
-    const qReports = query(collection(db, 'trailReports'), where('userId', '==', userId), where('status', '==', 'approved'));
+    const qReports = query(collection(db, 'reports'), where('userId', '==', userId), where('status', '==', 'approved'));
     const reportsSnap = await getDocs(qReports);
     const approvedReports = reportsSnap.docs.length;
 

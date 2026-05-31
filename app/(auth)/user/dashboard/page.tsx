@@ -10,8 +10,9 @@ import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/f
 import { TrailReport } from '@/types';
 
 export default function Dashboard() {
-    const { userProfile } = useAuth();
+    const { currentUser, userProfile } = useAuth();
     const [reports, setReports] = useState<TrailReport[]>([]);
+    const [badgeCount, setBadgeCount] = useState<number>(0);
 
     useEffect(() => {
         const q = query(
@@ -25,6 +26,18 @@ export default function Dashboard() {
         });
         return () => unsub();
     }, []);
+
+    useEffect(() => {
+        if (!currentUser) return;
+        const qAchievements = query(
+            collection(db, 'userAchievements'),
+            where('userId', '==', currentUser.uid)
+        );
+        const unsubAchievements = onSnapshot(qAchievements, (snapshot) => {
+            setBadgeCount(snapshot.size);
+        });
+        return () => unsubAchievements();
+    }, [currentUser]);
 
     if (!userProfile) return null;
 
@@ -51,7 +64,7 @@ export default function Dashboard() {
                 {[
                     { label: 'Total Trip', value: userProfile.totalTrips },
                     { label: 'Selesai', value: userProfile.totalTrips }, // Mocking for now
-                    { label: 'Badge', value: 0 },
+                    { label: 'Badge', value: badgeCount },
                     { label: 'Eco Score', value: userProfile.ecoScore },
                 ].map((stat, i) => (
                     <div

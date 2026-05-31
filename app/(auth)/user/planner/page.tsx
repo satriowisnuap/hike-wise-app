@@ -18,14 +18,17 @@ export default function PlannerPage() {
   
   const [step, setStep] = useState(1);
   const [mountains, setMountains] = useState<Mountain[]>([]);
-  const [filteredMountains, setFilteredMountains] = useState<Mountain[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
   // Form State
   const [selectedMountain, setSelectedMountain] = useState<Mountain | null>(null);
   const [tripTitle, setTripTitle] = useState('');
-  const [startDate, setStartDate] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  });
   const [duration, setDuration] = useState<number>(2);
   const [members, setMembers] = useState<number>(2);
   const [experienceLevel, setExperienceLevel] = useState<'beginner' | 'intermediate' | 'advanced'>('intermediate');
@@ -34,18 +37,12 @@ export default function PlannerPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // Set default start date to tomorrow
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setStartDate(tomorrow.toISOString().split('T')[0]);
-
     const fetchMountains = async () => {
       try {
         const q = query(collection(db, 'mountains'), where('isOpen', '==', true));
         const snapshot = await getDocs(q);
         const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Mountain));
         setMountains(fetched);
-        setFilteredMountains(fetched);
       } catch (err) {
         console.error('Error fetching mountains:', err);
         toast.error('Gagal memuat daftar gunung');
@@ -56,13 +53,12 @@ export default function PlannerPage() {
     fetchMountains();
   }, []);
 
-  useEffect(() => {
+  const filteredMountains = React.useMemo(() => {
     if (searchQuery.trim() === '') {
-      setFilteredMountains(mountains);
-    } else {
-      const lowerQuery = searchQuery.toLowerCase();
-      setFilteredMountains(mountains.filter(m => m.name.toLowerCase().includes(lowerQuery) || m.province.toLowerCase().includes(lowerQuery)));
+      return mountains;
     }
+    const lowerQuery = searchQuery.toLowerCase();
+    return mountains.filter(m => m.name.toLowerCase().includes(lowerQuery) || m.province.toLowerCase().includes(lowerQuery));
   }, [searchQuery, mountains]);
 
   const handleNextToStep3 = () => {

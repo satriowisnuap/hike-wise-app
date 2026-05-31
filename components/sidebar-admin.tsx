@@ -19,8 +19,8 @@ export default function AdminSidebar() {
     const { logout } = useAuth();
 
     return (
-        <div className="hidden md:flex flex-col w-64 h-screen fixed top-0 left-0 bg-stone-900 dark:bg-stone-950 text-stone-100 z-10">
-            <div className="p-6 border-b border-stone-800">
+        <div className="hidden md:flex flex-col w-64 h-screen fixed top-0 left-0 bg-white dark:bg-stone-900 border-r border-stone-200 dark:border-stone-700 z-10 transition-colors">
+            <div className="p-6">
                 <Link href="/admin/dashboard" className="flex items-center gap-2">
                     <Trees className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                     <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">Hike Wise</span>
@@ -37,8 +37,8 @@ export default function AdminSidebar() {
                             href={item.href}
                             className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
                                 isActive
-                                    ? 'bg-emerald-500/20 text-emerald-400 font-medium'
-                                    : 'text-stone-400 hover:bg-stone-800 hover:text-stone-200'
+                                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 font-medium'
+                                    : 'text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800'
                             }`}
                         >
                             <Icon className="w-5 h-5" />
@@ -48,15 +48,15 @@ export default function AdminSidebar() {
                 })}
             </nav>
 
-            <div className="p-4 border-t border-stone-800">
+            <div className="p-4 border-t border-stone-200 dark:border-stone-700">
                 <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm font-medium text-stone-400">Kustomisasi</span>
+                    <span className="text-sm font-medium text-stone-500 dark:text-stone-400">Kustomisasi</span>
                     <ThemeToggle />
                 </div>
 
                 <button
                     onClick={logout}
-                    className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30 rounded-xl transition-colors"
                 >
                     Keluar
                 </button>

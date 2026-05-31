@@ -2,14 +2,18 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { TrailReport } from '@/types';
+import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, deleteDoc, getDocs, addDoc, Timestamp } from 'firebase/firestore';
+import { TrailReport, Mountain } from '@/types';
 import Avatar from '@/components/Avatar';
 import { toast } from 'sonner';
-import { MessageSquare, CheckCircle, XCircle, Cloud, Search, Filter, Trash2 } from 'lucide-react';
+import { MessageSquare, CheckCircle, XCircle, Cloud, Search, Filter, Trash2, Plus, AlertTriangle, X, Info } from 'lucide-react';
 import { checkAndAwardAchievements } from '@/lib/achievement-checker';
+import { useAuth } from '@/lib/auth-context';
+import Select from '@/components/Select';
 
 export default function AdminReportsPage() {
+  const { currentUser: user } = useAuth();
+
   const [reports, setReports] = useState<TrailReport[]>([]);
   const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,6 +26,14 @@ export default function AdminReportsPage() {
   // Delete Dialog
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Modal Form State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formMountainId, setFormMountainId] = useState('');
+  const [formCondition, setFormCondition] = useState<'good' | 'caution' | 'danger'>('good');
+  const [formWeather, setFormWeather] = useState('');
+  const [formDesc, setFormDesc] = useState('');
+  const [mountains, setMountains] = useState<Mountain[]>([]);
+
   useEffect(() => {
     const q = query(collection(db, 'reports'), where('status', '==', activeTab), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
@@ -29,6 +41,57 @@ export default function AdminReportsPage() {
     });
     return () => unsub();
   }, [activeTab]);
+
+  useEffect(() => {
+    const fetchMountains = async () => {
+      try {
+        const q = query(collection(db, 'mountains'));
+        const snap = await getDocs(q);
+        setMountains(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Mountain));
+      } catch (err) {
+        console.error('Error fetching mountains:', err);
+      }
+    };
+    fetchMountains();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !formMountainId || !formWeather || formDesc.length < 50) return;
+
+    const m = mountains.find((m) => m.id === formMountainId);
+    if (!m) return;
+
+    setSubmitting(true);
+    try {
+      const report: Omit<TrailReport, 'id'> = {
+        userId: user.uid,
+        userName: user.displayName || 'Admin',
+        mountainId: m.id,
+        mountainName: m.name,
+        condition: formCondition,
+        weather: formWeather,
+        description: formDesc,
+        status: 'approved',
+        rejectionNote: '',
+        createdAt: Timestamp.now(),
+      };
+
+      await addDoc(collection(db, 'reports'), report);
+      toast.success('Laporan berhasil dibuat dan langsung disetujui!');
+
+      setIsModalOpen(false);
+      setFormMountainId('');
+      setFormWeather('');
+      setFormDesc('');
+      setFormCondition('good');
+    } catch (err) {
+      console.error('Submit report error:', err);
+      toast.error('Gagal membuat laporan');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleApprove = async (report: TrailReport) => {
     try {
@@ -90,9 +153,17 @@ export default function AdminReportsPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-8 relative">
       
-      <div>
-        <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100">Moderasi Laporan</h1>
-        <p className="text-sm text-stone-500 dark:text-stone-400">Tinjau laporan kondisi jalur dari pengguna.</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100">Moderasi Laporan</h1>
+          <p className="text-sm text-stone-500 dark:text-stone-400">Tinjau laporan kondisi jalur dari pengguna.</p>
+        </div>
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 dark:bg-emerald-500 text-white font-medium hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2"
+        >
+          <Plus className="w-5 h-5" /> Buat Laporan
+        </button>
       </div>
 
       <div className="bg-white dark:bg-stone-900 p-4 rounded-2xl border border-stone-200 dark:border-stone-700 flex flex-col md:flex-row gap-4 justify-between items-center">
@@ -273,6 +344,123 @@ export default function AdminReportsPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Buat Laporan */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 bg-stone-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-stone-900 w-full max-w-lg rounded-2xl border border-stone-200 dark:border-stone-700 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-stone-200 dark:border-stone-700 flex justify-between items-center bg-stone-50 dark:bg-stone-900/50">
+              <h2 className="font-bold text-stone-900 dark:text-stone-100">Buat Laporan Baru (Admin)</h2>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-stone-500 hover:text-stone-700 dark:hover:text-stone-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-5">
+              <div className="space-y-2">
+                <Select
+                  label="Gunung"
+                  value={formMountainId}
+                  onChange={(val) => setFormMountainId(val as string)}
+                  options={mountains.map((m) => ({ label: m.name, value: m.id }))}
+                  placeholder="Pilih Gunung"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">
+                  Kondisi Saat Ini
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormCondition('good')}
+                    className={`p-3 rounded-xl border flex flex-col items-center gap-1 ${formCondition === 'good' ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-500 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500' : 'border-stone-200 dark:border-stone-700 text-stone-500 dark:text-stone-400'}`}
+                  >
+                    <CheckCircle className="w-6 h-6" />{' '}
+                    <span className="text-xs font-bold">Aman</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormCondition('caution')}
+                    className={`p-3 rounded-xl border flex flex-col items-center gap-1 ${formCondition === 'caution' ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-500 text-amber-700 dark:text-amber-400 ring-1 ring-amber-500' : 'border-stone-200 dark:border-stone-700 text-stone-500 dark:text-stone-400'}`}
+                  >
+                    <AlertTriangle className="w-6 h-6" />{' '}
+                    <span className="text-xs font-bold">Waspada</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormCondition('danger')}
+                    className={`p-3 rounded-xl border flex flex-col items-center gap-1 ${formCondition === 'danger' ? 'bg-red-50 dark:bg-red-900/30 border-red-500 text-red-700 dark:text-red-400 ring-1 ring-red-500' : 'border-stone-200 dark:border-stone-700 text-stone-500 dark:text-stone-400'}`}
+                  >
+                    <XCircle className="w-6 h-6" />{' '}
+                    <span className="text-xs font-bold">Berbahaya</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">
+                  Cuaca (Maks 100 Karakter)
+                </label>
+                <input
+                  type="text"
+                  required
+                  maxLength={100}
+                  value={formWeather}
+                  onChange={(e) => setFormWeather(e.target.value)}
+                  placeholder="Contoh: Cerah berawan, angin tenang"
+                  className="w-full px-4 py-3 rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-emerald-500 outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-stone-900 dark:text-stone-100">
+                  Deskripsi (Min 50 Karakter)
+                </label>
+                <textarea
+                  required
+                  minLength={50}
+                  maxLength={500}
+                  rows={4}
+                  value={formDesc}
+                  onChange={(e) => setFormDesc(e.target.value)}
+                  placeholder="Ceritakan kondisi jalur, ketersediaan air, dan info penting lainnya..."
+                  className="w-full px-4 py-3 rounded-xl border border-stone-300 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
+                />
+                <div className="flex justify-between text-xs font-medium text-stone-500 dark:text-stone-400">
+                  <span className={formDesc.length > 0 && formDesc.length < 50 ? 'text-red-500' : ''}>
+                    {formDesc.length < 50
+                      ? `Kurang ${50 - formDesc.length} karakter`
+                      : 'Panjang deskripsi OK'}
+                  </span>
+                  <span>{formDesc.length}/500</span>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-xl flex gap-3 items-start border border-blue-100 dark:border-blue-900/30">
+                <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-800 dark:text-blue-300 font-medium">
+                  Sebagai admin, laporan yang Anda buat akan langsung berstatus disetujui (Approved) dan langsung dipublikasikan.
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={submitting || formDesc.length < 50}
+                  className="w-full py-4 rounded-xl bg-emerald-600 dark:bg-emerald-500 text-white font-bold hover:bg-emerald-700 dark:hover:bg-emerald-600 disabled:opacity-50 transition-colors"
+                >
+                  {submitting ? 'Mengirim...' : 'Kirim Laporan'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
