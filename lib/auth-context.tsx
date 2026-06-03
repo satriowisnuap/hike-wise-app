@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User as FirebaseUser, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -8,93 +8,105 @@ import { User } from '@/types';
 import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
-  currentUser: FirebaseUser | null;
-  userProfile: User | null;
-  userRole: 'user' | 'admin' | null;
-  loading: boolean;
-  logout: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
+    currentUser: FirebaseUser | null;
+    userProfile: User | null;
+    userRole: 'user' | 'admin' | null;
+    loading: boolean;
+    logout: () => Promise<void>;
+    refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  currentUser: null,
-  userProfile: null,
-  userRole: null,
-  loading: true,
-  logout: async () => {},
-  refreshProfile: async () => {},
+    currentUser: null,
+    userProfile: null,
+    userRole: null,
+    loading: true,
+    logout: async () => {},
+    refreshProfile: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
-  const [userProfile, setUserProfile] = useState<User | null>(null);
-  const [userRole, setUserRole] = useState<'user' | 'admin' | null>(null);
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
-  // Gunakan ref agar router selalu fresh di dalam closure onAuthStateChanged
-  const routerRef = useRef(router);
-  routerRef.current = router;
+    const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+    const [userProfile, setUserProfile] = useState<User | null>(null);
+    const [userRole, setUserRole] = useState<'user' | 'admin' | null>(null);
+    const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = async (user: FirebaseUser) => {
-    const userDocRef = doc(db, 'users', user.uid);
-    const userDoc = await getDoc(userDocRef);
+    const router = useRouter();
 
-    if (userDoc.exists()) {
-      const profile = userDoc.data() as User;
-      if (profile.suspended) {
-        await signOut(auth);
-        setCurrentUser(null);
-        setUserProfile(null);
-        setUserRole(null);
-        setLoading(false);
-        routerRef.current.push('/login?error=suspended');
-        return false;
-      }
-      setUserProfile(profile);
-      setUserRole(profile.role);
-      return true;
-    }
-    // Dokumen belum ada — bisa terjadi saat race condition setelah register
-    return false;
-  };
+    const fetchUserProfile = async (user: FirebaseUser) => {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
 
-  const refreshProfile = async () => {
-    if (currentUser) {
-      await fetchUserProfile(currentUser);
-    }
-  };
+        if (userDoc.exists()) {
+            const profile = userDoc.data() as User;
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setCurrentUser(user);
-        try {
-          await fetchUserProfile(user);
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
+            if (profile.suspended) {
+                await signOut(auth);
+
+                setCurrentUser(null);
+                setUserProfile(null);
+                setUserRole(null);
+                setLoading(false);
+
+                router.push('/login?error=suspended');
+                return false;
+            }
+
+            setUserProfile(profile);
+            setUserRole(profile.role);
+
+            return true;
         }
-      } else {
-        setCurrentUser(null);
-        setUserProfile(null);
-        setUserRole(null);
-      }
-      setLoading(false);
-    });
 
-    return unsubscribe;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+        return false;
+    };
 
-  const logout = async () => {
-    await signOut(auth);
-    router.push('/');
-  };
+    const refreshProfile = async () => {
+        if (currentUser) {
+            await fetchUserProfile(currentUser);
+        }
+    };
 
-  return (
-    <AuthContext.Provider value={{ currentUser, userProfile, userRole, loading, logout, refreshProfile }}>
-      {children}
-    </AuthContext.Provider>
-  );
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            try {
+                if (user) {
+                    setCurrentUser(user);
+                    await fetchUserProfile(user);
+                } else {
+                    setCurrentUser(null);
+                    setUserProfile(null);
+                    setUserRole(null);
+                }
+            } catch (error) {
+                console.error('Error fetching user profile:', error);
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        return unsubscribe;
+    }, []);
+
+    const logout = async () => {
+        await signOut(auth);
+        router.push('/');
+    };
+
+    return (
+        <AuthContext.Provider
+            value={{
+                currentUser,
+                userProfile,
+                userRole,
+                loading,
+                logout,
+                refreshProfile,
+            }}
+        >
+            {children}
+        </AuthContext.Provider>
+    );
 }
