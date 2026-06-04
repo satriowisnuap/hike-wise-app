@@ -17,7 +17,7 @@ export const metadata: Metadata = {
         siteName: 'Hike Wise',
         images: [
             {
-                url: '/images/preview.png',
+                url: '/preview.png',
                 width: 1200,
                 height: 630,
                 alt: 'Hike Wise',
